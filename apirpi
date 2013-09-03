@@ -1,0 +1,424 @@
+#!/bin/bash
+#-------------------------------------------------------------------------------
+#Post Install Script for Arch Linux on the Raspberry Pi
+#Inspired by helmuthdu https://gist.github.com/Xifax/1517721
+#-------------------------------------------------------------------------------
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License, or
+#(at your option) any later version.
+#
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+#
+#You should have received a copy of the GNU General Public License
+#along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#-------------------------------------------------------------------------------
+# Run this script after your first boot with Arch Linux (as root) on a Raspberry Pi.
+
+#functions
+function get_reply(){
+  read -p "$1 [y][n]: " OPTION
+  echo ""
+}
+
+function install_status(){
+  if [ $? -ne 0 ] ; then
+    CURRENT_STATUS=-1
+  else
+    CURRENT_STATUS=1
+  fi
+}
+
+function print_line(){
+  echo "--------------------------------------------------------------------------------"
+}
+
+function print_title (){
+  clear
+  echo "#-------------------------------------------------------------------------------"
+  echo -e "# $1"
+  echo "#-------------------------------------------------------------------------------"
+  echo ""
+}
+
+function finish_function(){
+  print_line
+  echo "Hit Enter to continue."
+  read
+  clear
+}
+
+function summary(){
+  case $CURRENT_STATUS in
+    0)
+      print_line
+      echo "$1 not successfull (Canceled)"
+      ;;
+    -1)
+      print_line
+      echo "$1 not successfull (Error)"
+      ;;
+    1)
+      print_line
+      echo "$1 successfull"
+      ;;
+    *)
+      print_line
+      echo "WRONG ARG GIVEN"
+      ;;
+  esac
+}
+
+#begin
+  clear
+  echo "Welcome to the ArchPi install script"
+  print_line
+  echo "Requirements:"
+  echo "-> Fresh Arch Linux installation on Raspberry Pi"
+  echo "-> Working internet connection"
+  print_line
+  echo "Script can be canceled at any time with CTRL+C"
+  print_line
+  echo "OPEN THIS SCRIPT AND READ ALL OPTIONS BEFORE YOU CONTINUE TO USE IT"
+  echo "This script is still in BETA. Please report any bugs."
+  finish_function
+
+#system update
+  print_title "UPDATING YOUR SYSTEM - Run this script again after rebooting."
+  pacman -Syyu
+  read -p "Reboot your system [y][n]: " OPTION
+  if [ $OPTION = "y" ]; then
+    reboot
+    exit 0
+  fi
+
+#create a new user
+  print_title "CREATE USER ACCOUNT"
+  get_reply "Create a new user account?"
+  case "$OPTION" in
+    "y")
+      read -p "New user name: " USERNAME
+      useradd -m -g users -G audio,video,wheel -s /bin/bash $USERNAME
+      passwd $USERNAME
+      #set user as sudo
+      pacman -S --noconfirm sudo
+      ## Uncomment to allow members of group wheel to execute any command
+      sed -i '/%wheel ALL=(ALL) ALL/s/^#//' /etc/sudoers
+      ## Same thing without a password (not secure)
+      #sed -i '/%wheel ALL=(ALL) NOPASSWD: ALL/s/^#//' /etc/sudoers
+      install_status
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+
+#yaourt
+  print_title "YAOURT - https://wiki.archlinux.org/index.php/Yaourt"
+  get_reply "Install yaourt - AUR Backend (required for many Packages)?"
+  case "$OPTION" in
+    "y")
+      pacman -S --noconfirm base-devel yaourt
+      install_status
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  summary "Yaourt installation"
+  finish_function
+
+#base system
+  get_reply "Install BASH TOOLS - https://wiki.archlinux.org/index.php/Bash?"
+  case "$OPTION" in
+    "y")
+      pacman -S --noconfirm curl bc rsync mlocate bash-completion
+      install_status
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  get_reply "Install (UN)COMPRESS TOOLS - https://wiki.archlinux.org/index.php/P7zip?"
+  case "$OPTION" in
+    "y")
+      pacman -S --noconfirm tar gzip bzip2 unzip unrar p7zip
+      install_status
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  finish_function
+
+#configure ssh
+  get_reply "Would you like to secure SSH? WARNING: You will no longer be able to login as root over SSH after this."
+  case "$OPTION" in
+    "y")
+      echo -e "sshd: ALL\n# End of file" > /etc/hosts.allow
+      echo -e "ALL: ALL: DENY\n# End of file" > /etc/hosts.deny
+      #ssh_conf
+        sed -i '/ListenAddress/s/^#//' /etc/ssh/sshd_config
+        sed -i '/SyslogFacility/s/^#//' /etc/ssh/sshd_config
+        sed -i '/LogLevel/s/^#//' /etc/ssh/sshd_config
+        sed -i '/LoginGraceTime/s/^#//' /etc/ssh/sshd_config
+        sed -i '/PermitRootLogin/s/^#//' /etc/ssh/sshd_config
+        sed -i '/PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
+        sed -i '/StrictModes/s/^#//' /etc/ssh/sshd_config
+        sed -i '/RSAAuthentication/s/^#//' /etc/ssh/sshd_config
+        sed -i '/PubkeyAuthentication/s/^#//' /etc/ssh/sshd_config
+        sed -i '/IgnoreRhosts/s/^#//' /etc/ssh/sshd_config
+        sed -i '/PermitEmptyPasswords/s/^#//' /etc/ssh/sshd_config
+        sed -i '/X11Forwarding/s/^#//' /etc/ssh/sshd_config
+        sed -i '/X11Forwarding/s/no/yes/' /etc/ssh/sshd_config
+        sed -i '/X11DisplayOffset/s/^#//' /etc/ssh/sshd_config
+        sed -i '/X11UseLocalhost/s/^#//' /etc/ssh/sshd_config
+        sed -i '/PrintLastLog/s/^#//' /etc/ssh/sshd_config
+        sed -i '/TCPKeepAlive/s/^#//' /etc/ssh/sshd_config
+        sed -i 's/ListenAddress ::/s/^/#/' /etc/ssh/sshd_config
+    *)
+      CURRENT_STATUS=0
+      ;;
+    esac
+
+#alsa
+  print_title "ALSA - https://wiki.archlinux.org/index.php/Alsa"
+  get_reply "Would you like to install alsa (required for sound)?"
+  case "$OPTION" in
+    "y")
+      pacman -S --noconfirm alsa-utils alsa-firmware alsa-lib alsa-plugins
+      amixer sset PCM unmute
+      amixer cset numid=3 0
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  summary "Base Installation"
+  finish_function
+
+#X
+  print_title "XORG - https://wiki.archlinux.org/index.php/Xorg"
+    get_reply "Would you like to install alsa (required for sound)?"
+  case "$OPTION" in
+    "y")
+      echo "Installing X-Server (req. for Desktopenvironment, GPU Drivers,...)"
+      pacman -S --noconfirm xf86-video-fbdev xorg-server xorg-xinit xorg-utils xorg-server-utils xorg-xkill xorg-xauth
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+
+#desktop environment
+  print_title "DESKTOP ENVIRONMENT - https://wiki.archlinux.org/index.php/Desktop_Environment"
+  echo "Choose your desktop-environment:"
+  echo "[1] LXDE"
+  echo "[2] XFCE"
+        echo ""
+  echo "[a] BOTH"
+  echo "[q] NONE"
+  read -p "Option: " OPTION
+  case "$OPTION" in
+    1)
+      #LXDE
+      print_title "LXDE - https://wiki.archlinux.org/index.php/LXDE"
+      pacman -S --noconfirm lxde
+      pacman -S --noconfirm gksu gvfs-smb xdg-user-dirs
+                        mkdir -p /home/$USERNAME/.config/openbox
+                        cp /etc/xdg/openbox/{menu.xml,rc.xml,autostart} /home/$USERNAME/.config/openbox
+      systemctl enable lxdm
+      finish_function
+
+      ;;
+    2)
+      #XFCE
+      print_title "XFCE - https://wiki.archlinux.org/index.php/Xfce"
+      pacman -S --noconfirm xfce4 lxdm
+      pacman -S --noconfirm gksu gvfs-smb xdg-user-dirs
+      pacman -S --noconfirm gstreamer0.10-plugins
+                        systemctl enable lxdm
+      finish_function
+
+      ;;
+    "a")
+      #XFCE and LXDE
+      print_title "XFCE - https://wiki.archlinux.org/index.php/Xfce"
+      print_title "LXDE - https://wiki.archlinux.org/index.php/LXDE"
+      pacman -S --noconfirm xfce4
+      pacman -S --noconfirm lxde
+      pacman -S --noconfirm gksu gvfs-smb xdg-user-dirs
+      pacman -S --noconfirm gstreamer0.10-plugins
+      mkdir -p /home/$USERNAME/.config/openbox
+      cp /etc/xdg/openbox/{menu.xml,rc.xml,autostart} /home/$USERNAME/.config/openbox
+      systemctl enable lxdm
+      finish_function
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  summary "Desktop installation"
+  finish_function
+
+#Image Viewer
+  print_title "Applications - https://wiki.archlinux.org/index.php/List_of_Applications"
+  echo "Choose your image viewer:"
+  echo "[1] fbi (console)"
+  echo "[2] fbv (console)"
+  echo "[3] gPicView (LXDE Default)"
+  echo "[4] Ristretto (Xfce Default)"
+  echo ""
+  echo "[q] NONE - I will install one later."
+  read -p "Option: " OPTION
+  case "$OPTION" in
+    1)
+      #fbi
+      print_title "fbi - https://www.archlinux.org/packages/?name=fbida"
+      pacman -S --noconfirm fbida
+      finish_function
+      ;;
+    2)
+      #fbv
+      print_title "fbv - https://www.archlinux.org/packages/?name=fbv"
+      pacman -S --noconfirm fbv
+      finish_function
+      ;;
+    3)
+      #gPicView
+      print_title "gPicView - https://www.archlinux.org/packages/?name=gpicview"
+      pacman -S --noconfirm gpicview
+      finish_function
+      ;;
+    4)
+      #Ristretto
+      print_title "Ristretto - https://www.archlinux.org/packages/?name=ristretto"
+      pacman -S --noconfirm ristretto
+      finish_function
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  summary "Image Viewer installation"
+  finish_function
+
+#Audio Player
+  print_title "Applications - https://wiki.archlinux.org/index.php/List_of_Applications"
+  echo "Choose your audio player:"
+  echo "[1] mpd (music player daemon)"
+  echo "[2] mpg123 (console)"
+  echo "[3] Xnoise (graphical)"
+  echo "[4] DeaDBeeF (console and graphical)"
+  echo "[5] vlc (console and graphical)"
+  echo ""
+  echo "[q] NONE - I will install one later."
+  read -p "Option: " OPTION
+  case "$OPTION" in
+    1)
+      #mpd
+      print_title "mpd - https://wiki.archlinux.org/index.php/Music_Player_Daemon"
+      print_title "mpd - https://www.archlinux.org/packages/?name=mpd"
+      pacman -S --noconfirm mpd
+      mkdir -p $USERNAME/.mpd/playlists
+      cp /usr/share/doc/mpd/mpdconf.example $USERNAME/.mpd/mpd.conf
+      touch $USERNAME/.mpd/{database,log,state,pid}
+      finish_function
+      ;;
+    2)
+      #mpg123
+      print_title "mpg123 - https://www.archlinux.org/packages/?name=mpg123"
+      pacman -S --noconfirm mpg123
+      finish_function
+      ;;
+    3)
+      #Xnoise
+      print_title "https://www.archlinux.org/packages/?name=xnoise"
+      pacman -S --noconfirm mpg123
+      finish_function
+      ;;
+    4)
+      #DeaDBeeF
+      print_title "DeaDBeeF - https://www.archlinux.org/packages/?name=deadbeef"
+      pacman -S --noconfirm deadbeef
+      finish_function
+      ;;
+    5)
+      #vlc
+      print_title "vlc - https://www.archlinux.org/packages/?name=vlc"
+      pacman -S --noconfirm vlc
+      finish_function
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  summary "Audio player installation"
+  finish_function
+
+#Video Player
+  print_title "Applications - https://wiki.archlinux.org/index.php/List_of_Applications"
+  echo "Choose your audio player:"
+  echo "[1] mplayer (console)"
+  echo "[2] omxplayer (console)"
+  echo "[3] Xnoise (graphical)"
+  echo "[4] tboplayer (graphical)"
+  echo "[5] vlc (console and graphical)"
+  echo ""
+  echo "[q] NONE - I will install one later."
+  read -p "Option: " OPTION
+  case "$OPTION" in
+    1)
+      #mplayer
+      print_title "mplayer - https://www.archlinux.org/packages/?name=mplayer"
+      pacman -S --noconfirm mplayer
+      finish_function
+      ;;
+    2)
+      #omxplayer
+      print_title "omxplayer - https://github.com/huceke/omxplayer"
+      pacman -S --noconfirm omxplayer-git
+      finish_function
+      ;;
+    3)
+      #Xnoise
+      print_title "Xnoise - https://www.archlinux.org/packages/?name=xnoise"
+      pacman -S --noconfirm xnoise
+      finish_function
+      ;;
+    4)
+      #tboplayer
+      print_title "tboplayer - https://github.com/KenT2/tboplayer"
+      pacman -S --noconfirm tboplayer-git
+      finish_function
+      ;;
+    5)
+      #vlc
+      print_title "vlc - https://www.archlinux.org/packages/?name=vlc"
+      pacman -S --noconfirm vlc
+      finish_function
+      ;;
+    *)
+      CURRENT_STATUS=0
+      ;;
+  esac
+  summary "Video player installation"
+  finish_function
+
+#reboot
+print_title "INSTALL COMPLETED"
+get_reply "Reboot now?"
+case "$OPTION" in
+  "y")
+    echo "Thanks for using this install script"
+    echo "Your Computer will now restart"
+    finish_function
+    reboot
+    exit 0
+    ;;
+  *)
+    echo "Thanks for using this install script"
+    exit 0
+    ;;
+esac
