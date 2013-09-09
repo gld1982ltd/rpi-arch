@@ -179,6 +179,7 @@ function summary(){
         sed -i '/PrintLastLog/s/^#//' /etc/ssh/sshd_config
         sed -i '/TCPKeepAlive/s/^#//' /etc/ssh/sshd_config
         sed -i 's/ListenAddress ::/s/^/#/' /etc/ssh/sshd_config
+      ;;
     *)
       CURRENT_STATUS=0
       ;;
@@ -192,6 +193,7 @@ function summary(){
       pacman -S --noconfirm alsa-utils alsa-firmware alsa-lib alsa-plugins
       amixer sset PCM unmute
       amixer cset numid=3 0
+      ;;
     *)
       CURRENT_STATUS=0
       ;;
@@ -206,6 +208,7 @@ function summary(){
     "y")
       echo "Installing X-Server (req. for Desktopenvironment, GPU Drivers,...)"
       pacman -S --noconfirm xf86-video-fbdev xorg-server xorg-xinit xorg-utils xorg-server-utils xorg-xkill xorg-xauth
+      ;;
     *)
       CURRENT_STATUS=0
       ;;
@@ -226,11 +229,10 @@ function summary(){
       print_title "LXDE - https://wiki.archlinux.org/index.php/LXDE"
       pacman -S --noconfirm lxde
       pacman -S --noconfirm gksu gvfs-smb xdg-user-dirs
-                        mkdir -p /home/$USERNAME/.config/openbox
-                        cp /etc/xdg/openbox/{menu.xml,rc.xml,autostart} /home/$USERNAME/.config/openbox
+      mkdir -p /home/$USERNAME/.config/openbox
+      cp /etc/xdg/openbox/{menu.xml,rc.xml,autostart} /home/$USERNAME/.config/openbox
       systemctl enable lxdm
       finish_function
-
       ;;
     2)
       #XFCE
@@ -238,9 +240,8 @@ function summary(){
       pacman -S --noconfirm xfce4 lxdm
       pacman -S --noconfirm gksu gvfs-smb xdg-user-dirs
       pacman -S --noconfirm gstreamer0.10-plugins
-                        systemctl enable lxdm
+      systemctl enable lxdm
       finish_function
-
       ;;
     "a")
       #XFCE and LXDE
